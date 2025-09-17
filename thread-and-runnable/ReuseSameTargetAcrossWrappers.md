@@ -1,4 +1,4 @@
-## Example: Reusing the Same Target Across Two Wrapper Threads
+## Reusing the Same Target Across Two Wrapper Threads
 
 ```
 public class ReuseSameTargetAcrossWrappers {

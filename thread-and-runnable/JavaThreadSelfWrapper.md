@@ -1,7 +1,7 @@
 ## Wrapping a `Thread` instance as the target of another `Thread`
 
 ```
-public class JavaThreadSelfWrapper {
+public class io.github.smdaziz.thread.wrapping.JavaThreadSelfWrapper {
     public static void main(String[] args) {
         Thread thread = new Thread(new Thread());
         thread.start();

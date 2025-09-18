@@ -1,37 +1,37 @@
 ## Wrapping a target in explicitly **named** wrappers
 
 ```
-public class WrapTargetInThread {
+public class io.github.smdaziz.thread.wrapping.WrapTargetInThread {
 
     public static void main(String[] args) throws InterruptedException {
-        Thread thread1 = new Thread(new MyThread(), "Thread-MyThread-1");
+        Thread thread1 = new Thread(new io.github.smdaziz.thread.MyThread(), "Thread-io.github.smdaziz.thread.MyThread-1");
         thread1.start();
 
-        Thread thread2 = new Thread(new MyThread(), "Thread-MyThread-2");
+        Thread thread2 = new Thread(new io.github.smdaziz.thread.MyThread(), "Thread-io.github.smdaziz.thread.MyThread-2");
         thread2.start();
     }
 }
 ```
 
 ### What it does
--   Creates two **wrapper** threads with explicit names: `Thread-MyThread-1` and `Thread-MyThread-2`.
--   Each wrapper is given a **target**: a new `MyThread()` instance (used purely as a `Runnable`, not started directly).
+-   Creates two **wrapper** threads with explicit names: `Thread-io.github.smdaziz.thread.MyThread-1` and `Thread-io.github.smdaziz.thread.MyThread-2`.
+-   Each wrapper is given a **target**: a new `io.github.smdaziz.thread.MyThread()` instance (used purely as a `Runnable`, not started directly).
 
 ### What you'll see (order may vary)
--   `current/wrapper=Thread-MyThread-1`, `target=Thread-N`
--   `current/wrapper=Thread-MyThread-2`, `target=Thread-M`
+-   `current/wrapper=Thread-io.github.smdaziz.thread.MyThread-1`, `target=Thread-N`
+-   `current/wrapper=Thread-io.github.smdaziz.thread.MyThread-2`, `target=Thread-M`
 
-*`Thread-N` / `Thread-M` are JVM-assigned default names for the **target** `MyThread` instances created without an explicit name.*
+*`Thread-N` / `Thread-M` are JVM-assigned default names for the **target** `io.github.smdaziz.thread.MyThread` instances created without an explicit name.*
 
 ### Why these names appear
 -   `run()` executes **in the wrapper threads**, so `current/wrapper` shows the **wrapper's explicit name**.
--   The **target** is a `MyThread` instance created with the default constructor; even though it isn't started, the `Thread` superclass assigns it a **default name** like `Thread-7`. That's why you see `target=Thread-N`.
+-   The **target** is a `io.github.smdaziz.thread.MyThread` instance created with the default constructor; even though it isn't started, the `Thread` superclass assigns it a **default name** like `Thread-7`. That's why you see `target=Thread-N`.
 
 ### Runtime sequence
-1.  Create target A: `new MyThread()` → receives a default JVM name (e.g., `Thread-7`).
-2.  Create wrapper W₁: `new Thread(targetA, "Thread-MyThread-1")`.
+1.  Create target A: `new io.github.smdaziz.thread.MyThread()` → receives a default JVM name (e.g., `Thread-7`).
+2.  Create wrapper W₁: `new Thread(targetA, "Thread-io.github.smdaziz.thread.MyThread-1")`.
 3.  `W₁.start()` → JVM starts W₁ (the wrapper) and calls **W₁**'s `run()`, which invokes **targetA**'s `run()`.
-4.  Repeat with target B and wrapper W₂ named `"Thread-MyThread-2"`.
+4.  Repeat with target B and wrapper W₂ named `"Thread-io.github.smdaziz.thread.MyThread-2"`.
 5.  Outputs from W₁ and W₂ may interleave nondeterministically.
 
 ### Naming note

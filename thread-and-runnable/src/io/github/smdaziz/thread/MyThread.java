@@ -1,4 +1,6 @@
-class MyThread extends Thread {
+package io.github.smdaziz.thread;
+
+public class MyThread extends Thread {
 
     /**
      * Default constructor (unnamed thread/target).
@@ -24,7 +26,7 @@ class MyThread extends Thread {
     @Override
     public void run() {
         String current = Thread.currentThread().getName();
-        String target = this.getName(); // name assigned to this MyThread instance
+        String target = this.getName(); // name assigned to this io.github.smdaziz.thread.MyThread instance
         System.out.println("current/wrapper=" + current + ", target=" + target + " is running");
     }
 }

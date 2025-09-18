@@ -1,37 +1,37 @@
 ## Starting a `Thread` subclass directly
 
 ```
-public class StartThreadSubclassDirect {
+public class io.github.smdaziz.thread.wrapping.StartThreadSubclassDirect {
 
     public static void main(String[] args) throws InterruptedException {
-        Thread myThread1 = new MyThread("MyThread-1");
+        Thread myThread1 = new io.github.smdaziz.thread.MyThread("io.github.smdaziz.thread.MyThread-1");
         myThread1.start();
 
-        Thread myThread2 = new MyThread("MyThread-2");
+        Thread myThread2 = new io.github.smdaziz.thread.MyThread("io.github.smdaziz.thread.MyThread-2");
         myThread2.start();
     }
 }
 ```
 
 ### What it does
--   Constructs two `MyThread` instances with explicit names (`MyThread-1` and `MyThread-2`).
+-   Constructs two `io.github.smdaziz.thread.MyThread` instances with explicit names (`io.github.smdaziz.thread.MyThread-1` and `io.github.smdaziz.thread.MyThread-2`).
 -   Starts each instance directly with `start()`.
--   Each `MyThread` object **is its own running thread** (no wrapper thread involved).
+-   Each `io.github.smdaziz.thread.MyThread` object **is its own running thread** (no wrapper thread involved).
 
 ### What you'll see (order may vary)
--   `current/wrapper=MyThread-1, target=MyThread-1`
--   `current/wrapper=MyThread-2, target=MyThread-2`
+-   `current/wrapper=io.github.smdaziz.thread.MyThread-1, target=io.github.smdaziz.thread.MyThread-1`
+-   `current/wrapper=io.github.smdaziz.thread.MyThread-2, target=io.github.smdaziz.thread.MyThread-2`
 
-*(Assumes `MyThread.run()` prints `Thread.currentThread().getName()` as `current` and `this.getName()` as `target`.)*
+*(Assumes `io.github.smdaziz.thread.MyThread.run()` prints `Thread.currentThread().getName()` as `current` and `this.getName()` as `target`.)*
 
 ### Why these names appear
 -   When you start a `Thread` subclass directly, the **instance itself** is the running thread.
 -   Therefore, the "current" thread name and the instance's own name are the **same** for each line.
 
 ### Runtime sequence
-1.  Construct `MyThread("MyThread-1")`.
+1.  Construct `io.github.smdaziz.thread.MyThread("io.github.smdaziz.thread.MyThread-1")`.
 2.  Call `start()` → JVM creates an OS thread and calls that instance's `run()`.
-3.  Construct `MyThread("MyThread-2")` and `start()` it the same way.
+3.  Construct `io.github.smdaziz.thread.MyThread("io.github.smdaziz.thread.MyThread-2")` and `start()` it the same way.
 4.  Both threads run concurrently; their outputs may interleave nondeterministically.
 
 ### Thread-safety note

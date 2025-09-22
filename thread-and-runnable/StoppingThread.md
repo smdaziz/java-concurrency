@@ -108,53 +108,229 @@ Java originally provided Thread.stop(), but it’s deprecated and unsafe.
 
 It kills the thread immediately, without giving it a chance to release locks → can corrupt shared state and leave your program in an inconsistent state.
 
+## Any other means to stop a thread?
+
+How about Thread.interrupt()?
+
+```java
+package io.github.smdaziz.thread.destruction;
+
+public class StopByInterruptingThreadIncorrect {
+
+    public static void main(String[] args) {
+        // Main thread is run as soon as program starts
+        System.out.println("Main thread is running.");
+
+        Runnable runnable = () -> {
+            int runCount = 0;
+            String name = Thread.currentThread().getName();
+            // Keep the thread running until it is interrupted/stopped
+            while(!Thread.currentThread().isInterrupted()) {
+                runCount++;
+                try {
+                    System.out.println("Thread " + name + " is running. Count: " + runCount);
+                    // Simulate some work with sleep
+                    Thread.sleep(500);
+                } catch (InterruptedException e) {
+                    System.out.println("Thread " + name + " was interrupted while sleeping.");
+                }
+            }
+            System.out.println("Thread " + name + " has finished execution.");
+        };
+
+        // Create and start the thread
+        // So, main thread created and started this new thread named "Worker-1"
+        Thread thread = new Thread(runnable, "Worker-1");
+        thread.start();
+
+        try {
+            Thread.sleep(2000); // Let the thread run for a while
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+
+        System.out.println("Interrupting the thread to stop it.");
+        thread.interrupt(); // Interrupt the thread to signal it to stop
+
+        // Main thread ends here, but "Worker-1" continues to run
+        System.out.println("Main thread has finished execution.");
+    }
+
+}
+```
+
+Thread.interrupt() is a way to signal a thread that it should stop what it's doing and do something else (like terminate). However, it doesn't forcibly stop the thread. Instead, it sets an "interrupted" status flag on the thread.
+If the thread is blocked in a method that throws InterruptedException (like Thread.sleep() or Object.wait()), it will immediately throw that exception, allowing the thread to handle the interruption gracefully.
+
+So what does the above program do? Does it stop the thread?
+No, it does not stop the thread. The thread continues to run even after being interrupted because the InterruptedException is caught, but the loop condition does not change. The thread checks the interrupted status at the start of each loop iteration, but since the exception was caught and handled, the interrupted status is cleared, and the loop continues.
+
+Use interrupt()
+
+If the thread may be blocked (e.g., in sleep(), wait(), or I/O), use interruption.
+
+Call t.interrupt(), and in the thread, check Thread.currentThread().isInterrupted() or handle InterruptedException.
+
+When sleep() throws InterruptedException, it also clears the interrupt flag. Since you neither break out of the loop nor restore the flag, the loop condition
+
+while (!Thread.currentThread().isInterrupted())
+
+
+becomes true again and the thread keeps running. That’s why your “Worker-1” doesn’t stop.
+
+To properly stop the thread, you need to set a flag that the thread checks in its loop. When you want to stop the thread, you set this flag to false, and the thread will exit its loop and finish execution gracefully.
+
+Two correct fixes
+A) Restore the flag (preferred when you want upstream code to “see” the interrupt)
+while (!Thread.currentThread().isInterrupted()) {
+runCount++;
+try {
+System.out.println("Thread " + name + " is running. Count: " + runCount);
+Thread.sleep(500);
+} catch (InterruptedException e) {
+System.out.println("Thread " + name + " was interrupted while sleeping.");
+Thread.currentThread().interrupt();  // <- restore the interrupt status
+}
+}
+System.out.println("Thread " + name + " has finished execution.");
+
+B) Treat it as a cancel signal and exit immediately
+while (true) {
+runCount++;
+try {
+System.out.println("Thread " + name + " is running. Count: " + runCount);
+Thread.sleep(500);
+} catch (InterruptedException e) {
+System.out.println("Thread " + name + " was interrupted while sleeping.");
+break;  // <- leave the loop; thread ends
+}
+}
+System.out.println("Thread " + name + " has finished execution.");
+
+
+Both are valid. Pick one based on intent:
+
+Restore then continue if there’s cleanup or outer logic that will check isInterrupted() again.
+
+Break/return if interruption means “stop now.”
+
+```java
+package io.github.smdaziz.thread.destruction;
+
+public class StopByInterruptingThreadIncorrect {
+
+    public static void main(String[] args) {
+        // Main thread is run as soon as program starts
+        System.out.println("Main thread is running.");
+
+        Runnable runnable = () -> {
+            int runCount = 0;
+            String name = Thread.currentThread().getName();
+            // Keep the thread running until it is interrupted/stopped
+            while(!Thread.currentThread().isInterrupted()) {
+                runCount++;
+                try {
+                    System.out.println("Thread " + name + " is running. Count: " + runCount);
+                    // Simulate some work with sleep
+                    Thread.sleep(500);
+                } catch (InterruptedException e) {
+                    System.out.println("Thread " + name + " was interrupted while sleeping.");
+                }
+            }
+            System.out.println("Thread " + name + " has finished execution.");
+        };
+
+        // Create and start the thread
+        // So, main thread created and started this new thread named "Worker-1"
+        Thread thread = new Thread(runnable, "Worker-1");
+        thread.start();
+
+        try {
+            Thread.sleep(2000); // Let the thread run for a while
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+
+        System.out.println("Interrupting the thread to stop it.");
+        thread.interrupt(); // Interrupt the thread to signal it to stop
+
+        // Main thread ends here, but "Worker-1" continues to run
+        System.out.println("Main thread has finished execution.");
+    }
+
+}
+```
+
+Instead, design your threads to be stoppable in a safe manner.
+
 There are several ways to stop a thread, but the most common and recommended way is to use a flag variable that the thread checks periodically to determine if it should stop running.
 
 Here is an example of how to stop a thread using a flag variable:
 
 ```java
-class StoppableThread extends Thread {
-    private volatile boolean running = true;
-    private String threadName;
-    public StoppableThread(String name) {
-        this.threadName = name;
+package io.github.smdaziz.thread.destruction;
+
+public class ProgrammaticallyStopThread {
+
+    public static void main(String[] args) {
+        // Main thread is run as soon as program starts
+        System.out.println("Main thread is running.");
+
+        Runnable runnable = new StoppableRunnable();
+
+        // Create and start the thread
+        // So, main thread created and started this new thread named "Worker-1"
+        Thread thread = new Thread(runnable, "Worker-1");
+        thread.start();
+
+        try {
+            Thread.sleep(2000); // Let the thread run for a while
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+
+        System.out.println("Stopping the thread by setting a flag.");
+        ((StoppableRunnable) runnable).stop(); // Signal the runnable to stop
+
+        // Main thread ends here, but "Worker-1" continues to run
+        System.out.println("Main thread has finished execution.");
     }
+
+}
+
+class StoppableRunnable implements Runnable {
+    private boolean running = true;
+
     public void run() {
-        while (running) {
-            System.out.println("Thread " + threadName + " is running.");
+        int runCount = 0;
+        String name = Thread.currentThread().getName();
+        // Keep the thread running until it is interrupted/stopped
+        while(running) {
+            runCount++;
             try {
-                Thread.sleep(1000); // Simulate work
+                System.out.println("Thread " + name + " is running. Count: " + runCount);
+                // Simulate some work with sleep
+                Thread.sleep(500);
             } catch (InterruptedException e) {
-                Thread.currentThread().interrupt(); // Restore interrupted status
-                System.out.println("Thread " + threadName + " was interrupted.");
+                System.out.println("Thread " + name + " was interrupted while sleeping.");
             }
         }
-        System.out.println("Thread " + threadName + " is stopping.");
+        System.out.println("Thread " + name + " has finished execution.");
     }
-    public void stopRunning() {
-        running = false;
-    }
-}
-public class StoppingThreadExample {
-    public static void main(String[] args) throws InterruptedException {
-        StoppableThread thread1 = new StoppableThread("Thread-1");
-        StoppableThread thread2 = new StoppableThread("Thread-2");
 
-        thread1.start();
-        thread2.start();
-
-        Thread.sleep(5000); // Let the threads run for 5 seconds
-
-        thread1.stopRunning(); // Signal thread1 to stop
-        thread2.stopRunning(); // Signal thread2 to stop
-
-        thread1.join(); // Wait for thread1 to finish
-        thread2.join(); // Wait for thread2 to finish
-
-        System.out.println("Both threads have been stopped.");
+    public void stop() {
+        this.running = false;
     }
 }
 ```
+
 In this example, we define a `StoppableThread` class that extends `Thread`. It has a `running` flag that is checked in the `run()` method. The `stopRunning()` method sets this flag to `false`, which causes the thread to exit its loop and stop running.
+
+Is the code perfect? Let's try to run two threads of the same type and stop them both.
+
+```java
+```
+
 The `volatile` keyword is used to ensure that changes to the `running` variable are visible to all threads. The main method starts two threads, lets them run for 5 seconds, and then signals them to stop by calling `stopRunning()`. Finally, it waits for both threads to finish using `join()`.
 This approach is safe and allows threads to finish their work gracefully. Avoid using deprecated methods like `stop()`, as they can lead to inconsistent states and resource leaks.
+

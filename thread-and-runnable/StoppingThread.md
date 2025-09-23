@@ -270,7 +270,7 @@ Here is an example of how to stop a thread using a flag variable:
 ```java
 package io.github.smdaziz.thread.destruction;
 
-public class ProgrammaticallyStopThread {
+public class ProgrammaticallyStopThreads {
 
     public static void main(String[] args) {
         // Main thread is run as soon as program starts
@@ -280,8 +280,11 @@ public class ProgrammaticallyStopThread {
 
         // Create and start the thread
         // So, main thread created and started this new thread named "Worker-1"
-        Thread thread = new Thread(runnable, "Worker-1");
-        thread.start();
+        Thread thread1 = new Thread(runnable, "Worker-1");
+        thread1.start();
+
+        Thread thread2 = new Thread(runnable, "Worker-2");
+        thread2.start();
 
         try {
             Thread.sleep(2000); // Let the thread run for a while
@@ -289,7 +292,7 @@ public class ProgrammaticallyStopThread {
             e.printStackTrace();
         }
 
-        System.out.println("Stopping the thread by setting a flag.");
+        System.out.println("Stopping the thread(s) by setting a flag.");
         ((StoppableRunnable) runnable).stop(); // Signal the runnable to stop
 
         // Main thread ends here, but "Worker-1" continues to run
@@ -302,20 +305,13 @@ class StoppableRunnable implements Runnable {
     private boolean running = true;
 
     public void run() {
-        int runCount = 0;
+        long runCount = 0;
         String name = Thread.currentThread().getName();
         // Keep the thread running until it is interrupted/stopped
         while(running) {
             runCount++;
-            try {
-                System.out.println("Thread " + name + " is running. Count: " + runCount);
-                // Simulate some work with sleep
-                Thread.sleep(500);
-            } catch (InterruptedException e) {
-                System.out.println("Thread " + name + " was interrupted while sleeping.");
-            }
         }
-        System.out.println("Thread " + name + " has finished execution.");
+        System.out.println("Thread " + name + " has finished execution. runCount: " + runCount);
     }
 
     public void stop() {
@@ -326,9 +322,61 @@ class StoppableRunnable implements Runnable {
 
 In this example, we define a `StoppableThread` class that extends `Thread`. It has a `running` flag that is checked in the `run()` method. The `stopRunning()` method sets this flag to `false`, which causes the thread to exit its loop and stop running.
 
-Is the code perfect? Let's try to run two threads of the same type and stop them both.
+Is the code perfect?
+No! Without volatile: a thread may spin forever (never “sees” false).
 
 ```java
+package io.github.smdaziz.thread.destruction;
+
+public class ProgrammaticallyStopThreadsV2 {
+
+    public static void main(String[] args) {
+        // Main thread is run as soon as program starts
+        System.out.println("Main thread is running.");
+
+        Runnable runnable = new SafeStoppableRunnable();
+
+        // Create and start the thread
+        // So, main thread created and started this new thread named "Worker-1"
+        Thread thread1 = new Thread(runnable, "Worker-1");
+        thread1.start();
+
+        Thread thread2 = new Thread(runnable, "Worker-2");
+        thread2.start();
+
+        try {
+            Thread.sleep(2000); // Let the thread run for a while
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+
+        System.out.println("Stopping the thread(s) by setting a flag.");
+        ((SafeStoppableRunnable) runnable).stop(); // Signal the runnable to stop
+
+        // Main thread ends here, but "Worker-1" continues to run
+        System.out.println("Main thread has finished execution.");
+    }
+
+}
+
+class SafeStoppableRunnable implements Runnable {
+    private volatile boolean running = true;
+
+    public void run() {
+        long runCount = 0;
+        String name = Thread.currentThread().getName();
+        // Keep the thread running until it is interrupted/stopped
+        while(running) {
+            runCount++;
+        }
+        System.out.println("Thread " + name + " has finished execution. runCount: " + runCount);
+    }
+
+    public void stop()
+    {
+        this.running = false;
+    }
+}
 ```
 
 The `volatile` keyword is used to ensure that changes to the `running` variable are visible to all threads. The main method starts two threads, lets them run for 5 seconds, and then signals them to stop by calling `stopRunning()`. Finally, it waits for both threads to finish using `join()`.

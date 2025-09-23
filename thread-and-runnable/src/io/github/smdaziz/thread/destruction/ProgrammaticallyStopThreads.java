@@ -6,7 +6,7 @@ public class ProgrammaticallyStopThreads {
         // Main thread is run as soon as program starts
         System.out.println("Main thread is running.");
 
-        Runnable runnable = new SafeStoppableRunnable();
+        Runnable runnable = new StoppableRunnable();
 
         // Create and start the thread
         // So, main thread created and started this new thread named "Worker-1"
@@ -22,8 +22,8 @@ public class ProgrammaticallyStopThreads {
             e.printStackTrace();
         }
 
-        System.out.println("Stopping the thread by setting a flag.");
-        ((SafeStoppableRunnable) runnable).stop(); // Signal the runnable to stop
+        System.out.println("Stopping the thread(s) by setting a flag.");
+        ((StoppableRunnable) runnable).stop(); // Signal the runnable to stop
 
         // Main thread ends here, but "Worker-1" continues to run
         System.out.println("Main thread has finished execution.");
@@ -31,24 +31,17 @@ public class ProgrammaticallyStopThreads {
 
 }
 
-class SafeStoppableRunnable implements Runnable {
+class StoppableRunnable implements Runnable {
     private boolean running = true;
 
     public void run() {
-        int runCount = 0;
+        long runCount = 0;
         String name = Thread.currentThread().getName();
         // Keep the thread running until it is interrupted/stopped
         while(running) {
             runCount++;
-            try {
-                System.out.println("Thread " + name + " is running. Count: " + runCount);
-                // Simulate some work with sleep
-                Thread.sleep(500);
-            } catch (InterruptedException e) {
-                System.out.println("Thread " + name + " was interrupted while sleeping.");
-            }
         }
-        System.out.println("Thread " + name + " has finished execution.");
+        System.out.println("Thread " + name + " has finished execution. runCount: " + runCount);
     }
 
     public void stop() {

@@ -39,6 +39,8 @@ class StartGate implements Runnable {
 
     public void run() {
         while(!isOpen);
+        // Busy-wait until the gate is open. Burn CPU cycles.
+        // Could be improved with wait/notify for efficiency
         System.out.println("Thread " + Thread.currentThread().getName() + " has started execution.");
         try {
             Thread.sleep(2000); // Simulate some work with sleep

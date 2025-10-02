@@ -381,3 +381,331 @@ We wire up one producer (puts integers 1..10) and one consumer (takes them). The
 -   Always guard wait conditions with a **loop**.
 -   For more complex flows, higher-level tools (`BlockingQueue`, `Condition`, `Semaphore`) are simpler and less error-prone.
 
+### Producer/Consumer with a bounded buffer
+
+```java
+package io.github.smdaziz.thread.synchronization;
+
+import java.util.Random;
+
+public class BoundedBufferThread {
+
+    public static void main(String[] args) {
+        System.out.println("Main thread started");
+        BoundedBuffer buffer = new BoundedBuffer(3);
+        Thread producerThread = new Thread(new BoundedBufferProducer(buffer));
+        Thread consumerThread = new Thread(new BoundedBufferConsumer(buffer));
+        producerThread.start();
+        consumerThread.start();
+        try {
+            producerThread.join();
+            consumerThread.join();
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+        System.out.println("Main thread finished");
+    }
+
+}
+
+class BoundedBufferProducer implements Runnable {
+
+    private BoundedBuffer buffer;
+
+    public BoundedBufferProducer(BoundedBuffer buffer) {
+        this.buffer = buffer;
+    }
+
+    public void run() {
+        Random random = new Random();
+        for(int i = 1; i <= 10; i++) {
+            try {
+                buffer.put(i);
+                System.out.println("Produced: " + i);
+                Thread.sleep(random.nextInt(10) * 250);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        }
+    }
+
+}
+
+class BoundedBufferConsumer implements Runnable {
+
+    private BoundedBuffer buffer;
+
+    public BoundedBufferConsumer(BoundedBuffer buffer) {
+        this.buffer = buffer;
+    }
+
+    public void run() {
+        Random random = new Random();
+        for(int i = 1; i <= 10; i++) {
+            try {
+                int value = buffer.get();
+                System.out.println("Consumed: " + value);
+                Thread.sleep(random.nextInt(10) * 200);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        }
+    }
+
+}
+
+class BoundedBuffer {
+
+    private Integer[] buffer;
+    private int putIndex = 0;
+    private int takeIndex = 0;
+
+    public BoundedBuffer(int size) {
+        buffer = new Integer[size];
+    }
+
+    private boolean isFull() {
+        for(Integer i : buffer) {
+            if(i == null) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private boolean isEmpty() {
+        for(Integer i : buffer) {
+            if(i != null) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    public synchronized void put(int value) throws InterruptedException {
+        while(isFull()) {
+            wait();
+        }
+        buffer[putIndex] = value;
+        putIndex = (putIndex + 1) % buffer.length;
+        notifyAll();
+    }
+
+    public synchronized int get() throws InterruptedException {
+        while(isEmpty()) {
+            wait();
+        }
+        int value = buffer[takeIndex];
+        buffer[takeIndex] = null;
+        takeIndex = (takeIndex + 1) % buffer.length;
+        notifyAll();
+        return value;
+    }
+
+}
+```
+
+We extend the single-slot buffer to a **bounded buffer** (size 3). The producer and consumer now work with this larger buffer.
+
+**Does it work?** Yes! The producer and consumer correctly block when the buffer is full or empty, respectively.
+
+However, you might notice that the output can be a bit jumbled. This is because both threads are printing to the console, and their outputs can interleave.
+
+**Sample output:**
+```
+Main thread started
+Produced: 1
+Consumed: 1
+Consumed: 2
+Produced: 2
+Produced: 3
+Consumed: 3
+Consumed: 4
+Produced: 4
+Consumed: 5
+Produced: 5
+Consumed: 6
+Produced: 6
+Consumed: 7
+Produced: 7
+Produced: 8
+Consumed: 8
+Produced: 9
+Produced: 10
+Consumed: 9
+Consumed: 10
+Main thread finished
+```
+
+#### Why does `Consumed: 2` appear before `Produced: 2`?
+
+That's perfectly fine. The producer does:
+1. `buffer.put(i)`
+2. `System.out.println("Produced: " + i)`
+
+The **put** happens inside a synchronized method and completes before the consumer can `get()` that value. But once `put(i)` returns, the **producer's print** is *not atomic* with the put. The scheduler may switch to the consumer **after the put but before the print**, so the consumer prints `Consumed: 2` first, then the producer prints `Produced: 2`. Timeline:
+- Producer: `put(2)` ✅
+- Scheduler switches
+- Consumer: `get()` → prints `Consumed: 2`
+- Scheduler switches
+- Producer: prints `Produced: 2`
+
+So the logs can interleave, but the **data flow is still correct**: items are produced before they're consumed. Your buffer's synchronization guarantees that.
+
+#### Is the sequence correct overall?
+
+Everything consumed is **1..10 exactly once** (no loss/dup). The order is FIFO even though the *print lines* interleave with producer prints. That matches the intended behavior.
+
+#### Is the buffer correct?
+
+Yes:
+
+- Proper **`while` + `wait()/notifyAll()`** pattern.
+- Circular indices give **FIFO**.
+- `isFull()` / `isEmpty()` are called **only** from synchronized `put/get`, so they're safe.
+
+**Is there a way to make sure the print/log works correctly too?**
+
+Keep the lock while you log, so the consumer can't slip in between the `put()` and the "Produced:" print (and vice-versa).
+
+```java
+package io.github.smdaziz.thread.synchronization;
+
+import java.util.Random;
+
+public class BoundedBufferThread {
+
+    public static void main(String[] args) {
+        System.out.println("Main thread started");
+        BoundedBuffer buffer = new BoundedBuffer(3);
+        Thread producerThread = new Thread(new BoundedBufferProducer(buffer));
+        Thread consumerThread = new Thread(new BoundedBufferConsumer(buffer));
+        producerThread.start();
+        consumerThread.start();
+        try {
+            producerThread.join();
+            consumerThread.join();
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+        System.out.println("Main thread finished");
+    }
+
+}
+
+class BoundedBufferProducer implements Runnable {
+
+    private BoundedBuffer buffer;
+
+    public BoundedBufferProducer(BoundedBuffer buffer) {
+        this.buffer = buffer;
+    }
+
+    public void run() {
+        Random random = new Random();
+        for(int i = 1; i <= 10; i++) {
+            try {
+                buffer.put(i);
+                Thread.sleep(random.nextInt(10) * 250);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        }
+    }
+
+}
+
+class BoundedBufferConsumer implements Runnable {
+
+    private BoundedBuffer buffer;
+
+    public BoundedBufferConsumer(BoundedBuffer buffer) {
+        this.buffer = buffer;
+    }
+
+    public void run() {
+        Random random = new Random();
+        for(int i = 1; i <= 10; i++) {
+            try {
+                int value = buffer.get();
+                Thread.sleep(random.nextInt(10) * 200);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        }
+    }
+
+}
+
+class BoundedBuffer {
+
+    private Integer[] buffer;
+    private int putIndex = 0;
+    private int takeIndex = 0;
+
+    public BoundedBuffer(int size) {
+        buffer = new Integer[size];
+    }
+
+    private boolean isFull() {
+        for(Integer i : buffer) {
+            if(i == null) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private boolean isEmpty() {
+        for(Integer i : buffer) {
+            if(i != null) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    public synchronized void put(int value) throws InterruptedException {
+        while(isFull()) {
+            wait();
+        }
+        buffer[putIndex] = value;
+        putIndex = (putIndex + 1) % buffer.length;
+        System.out.println("Produced: " + value);
+        notifyAll();
+    }
+
+    public synchronized int get() throws InterruptedException {
+        while(isEmpty()) {
+            wait();
+        }
+        int value = buffer[takeIndex];
+        buffer[takeIndex] = null;
+        takeIndex = (takeIndex + 1) % buffer.length;
+        notifyAll();
+        System.out.println("Consumed: " + value);
+        return value;
+    }
+
+}
+```
+
+We move the print statements **inside** the synchronized `put()` and `get()` methods, right after the buffer update.
+
+**What it shows:**
+- Now the output is always in the expected order: `Produced: X` always appears before `Consumed: X`.
+- The producer and consumer still block correctly when the buffer is full/empty.
+- The buffer remains thread-safe and FIFO.
+- The print statements are now part of the critical section, so no interleaving occurs between `put()` and its print, or `get()` and its print.
+- The overall behavior and correctness of the bounded buffer remain intact.
+
+**Takeaways:**
+- Keeping related actions (like updating state and logging) inside the same synchronized block ensures consistent output without sacrificing thread safety.
+- However, be cautious: if the print statements are slow or blocking, they can reduce concurrency. In real applications, consider using a thread-safe logging framework that buffers output to avoid slowing down critical sections.
+- This approach is fine for simple demos but may not scale well in high-throughput systems.
+- Always balance correctness, performance, and clarity based on your application's needs.
+- For production code, consider using higher-level concurrency utilities like `BlockingQueue` from `java.util.concurrent`, which handle much of this complexity for you.
+- They provide built-in blocking behavior and are generally more efficient and easier to use than manual synchronization with `wait()` and `notify()`.
+- They also help avoid common pitfalls like missed signals and spurious wakeups.
+- Using `BlockingQueue` can significantly simplify producer-consumer implementations while ensuring thread safety and performance.
+

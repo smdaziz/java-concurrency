@@ -692,6 +692,9 @@ class BoundedBuffer {
 
 We move the print statements **inside** the synchronized `put()` and `get()` methods, right after the buffer update.
 
+**Another interesting question:** are we good without declaring `buffer`, `putIndex` and `takeIndex` as `volatile`?
+**Yes.** Because all accesses to these fields happen **inside synchronized methods**, the Java Memory Model guarantees visibility. The lock acquisition/release acts as a memory barrier, so changes made by one thread are visible to others that subsequently acquire the same lock. It is also known as "synchronized establishes a happens-before relationship".
+
 **What it shows:**
 - Now the output is always in the expected order: `Produced: X` always appears before `Consumed: X`.
 - The producer and consumer still block correctly when the buffer is full/empty.

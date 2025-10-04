@@ -20,6 +20,12 @@ public class Problem1 {
         }
 
         System.out.println("Main thread finished.");
+
+        // The interleaving of numbers and letters will vary with each execution.
+        // Without coordination, interleaving is nondeterministic.
+        // sleep() only hints to the scheduler; it doesn’t guarantee order.
+        // Also note: System.out.println is synchronized per-call (so lines don’t get mixed mid-line)
+        // but cross-thread ordering of those lines is not defined.
     }
 }
 

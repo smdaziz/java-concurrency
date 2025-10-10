@@ -19,7 +19,6 @@ public class CyclicBarrierThread {
             thread2.join();
             thread3.join();
             System.out.println("First phase completed. Starting next phase...");
-            barrier.reset(); // Reset the barrier for the next phase
             thread4.start();
             thread5.start();
             thread6.start();
@@ -37,6 +36,7 @@ public class CyclicBarrierThread {
 class CyclicBarrier {
     private final int totalThreads;
     private int waitingThreads;
+    private int phase = 0;
 
     public CyclicBarrier(int totalThreads) {
         this.totalThreads = totalThreads;
@@ -44,6 +44,7 @@ class CyclicBarrier {
     }
 
     public synchronized void waitForOthers() {
+        /*int currentPhase = phase;
         waitingThreads--;
         while (waitingThreads > 0) {
             try {
@@ -53,10 +54,28 @@ class CyclicBarrier {
             }
         }
         notifyAll();
-    }
+        waitingThreads = totalThreads; // Reset for next phase
+        phase++;*/
+        // Note: The above code is commented out to avoid deadlock in this example.
+        // Wrong wait condition. waits on while (waitingThreads > 0).
+        // The last arriver sets waitingThreads = totalThreads and notifyAll().
+        // Woken threads recheck the loop → condition is true again → they go back to wait() → hang.
 
-    public synchronized void reset() {
-        waitingThreads = totalThreads;
+        int currentPhase = phase;
+        waitingThreads--;
+        if (waitingThreads == 0) {
+            waitingThreads = totalThreads; // Reset for next phase
+            phase++;
+            notifyAll();
+            return;
+        }
+        while (currentPhase == phase) {
+            try {
+                wait();
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        }
     }
 }
 

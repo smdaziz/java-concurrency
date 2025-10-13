@@ -3,10 +3,9 @@ package io.github.smdaziz;
 // Goal: Implement a PingPong program where two threads print alternately “Ping” and “Pong” forever.
 public class Problem9 {
     public static void main(String[] args) {
-        Object pingLock = new Object();
-        Object pongLock = new Object();
-        Ping ping = new Ping(pongLock, pingLock);
-        Pong pong = new Pong(pingLock, pongLock);
+        PingPongLock pingPongLock = new PingPongLock(true);
+        Ping ping = new Ping(pingPongLock);
+        Pong pong = new Pong(pingPongLock);
         Thread pingThread = new Thread(ping);
         Thread pongThread = new Thread(pong);
         pingThread.start();
@@ -14,69 +13,79 @@ public class Problem9 {
     }
 }
 
-class Ping implements Runnable {
-    private Object pongLock;
-    private Object pingLock;
-    private boolean isFirst = true;
+class PingPongLock {
+    private boolean isPing = true;
 
-    public Ping(Object pongLock, Object pingLock) {
-        this.pongLock = pongLock;
-        this.pingLock = pingLock;
+    public PingPongLock(boolean initial) {
+        this.isPing = initial;
+    }
+
+    public boolean isPing() {
+        return isPing;
+    }
+
+    public boolean isPong() {
+        return !isPing;
+    }
+
+    public void setPing(boolean isPing) {
+        this.isPing = isPing;
+    }
+}
+
+class Ping implements Runnable {
+    private PingPongLock pingPongLock;
+
+    public Ping(PingPongLock pingPongLock) {
+        this.pingPongLock = pingPongLock;
     }
 
     @Override
     public void run() {
         while(true) {
-            if (isFirst) {
-                System.out.println("Ping");
-                isFirst = false;
-                // notify pong thread to print
-                synchronized (pingLock) {
-                    pingLock.notify();
-                }
-                continue;
-            }
             // wait for pong thread to print
-            synchronized (pongLock) {
-                try {
-                    pongLock.wait();
-                } catch (InterruptedException e) {
-                    e.printStackTrace();
+            synchronized(pingPongLock) {
+                while(pingPongLock.isPong()) {
+                    try {
+                        pingPongLock.wait();
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                    }
                 }
             }
             System.out.println("Ping");
-            // notify pong thread to print
-            synchronized (pingLock) {
-                pingLock.notify();
-                }
+            synchronized(pingPongLock) {
+                pingPongLock.setPing(false);
+                pingPongLock.notify();
+            }
         }
     }
 }
 
 class Pong implements Runnable {
-    private Object pingLock;
-    private Object pongLock;
+    private PingPongLock pingPongLock;
 
-    public Pong(Object pingLock, Object pongLock) {
-        this.pingLock = pingLock;
-        this.pongLock = pongLock;
+    public Pong(PingPongLock pingPongLock) {
+        this.pingPongLock = pingPongLock;
     }
 
     @Override
     public void run() {
         while(true) {
             // wait for ping thread to print
-            synchronized (pingLock) {
-                try {
-                    pingLock.wait();
-                } catch (InterruptedException e) {
-                    e.printStackTrace();
+            synchronized(pingPongLock) {
+                while(pingPongLock.isPing()) {
+                    try {
+                        pingPongLock.wait();
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                    }
                 }
             }
             System.out.println("Pong");
-            // notify ping thread to print
-            synchronized (pongLock) {
-                pongLock.notify();
+            synchronized(pingPongLock) {
+                pingPongLock.setPing(true);
+                pingPongLock.notify();
             }
         }
     }

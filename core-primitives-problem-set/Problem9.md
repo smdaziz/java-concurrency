@@ -596,4 +596,386 @@ synchronized(lock) {
 
 The `while` loop re-checks the **predicate** after every wake---spurious or not---so you only proceed when the state you need is actually true.
 
+So? let's use boolean condition to avoid the lost notification and spurious wakeup issues.
 
+```java
+package io.github.smdaziz;
+
+// Goal: Implement a PingPong program where two threads print alternately “Ping” and “Pong” forever.
+public class Problem9 {
+    public static void main(String[] args) {
+        PingPongLock pingLock = new PingPongLock(true);
+        PingPongLock pongLock = new PingPongLock(true);
+        Ping ping = new Ping(pongLock, pingLock);
+        Pong pong = new Pong(pingLock, pongLock);
+        Thread pingThread = new Thread(ping);
+        Thread pongThread = new Thread(pong);
+        pingThread.start();
+        pongThread.start();
+    }
+}
+
+class PingPongLock {
+    private boolean isLocked = true;
+
+    public PingPongLock(boolean initial) {
+        this.isLocked = initial;
+    }
+
+    public boolean isLocked() {
+        return isLocked;
+    }
+
+    public void setLocked(boolean locked) {
+        isLocked = locked;
+    }
+}
+
+class Ping implements Runnable {
+    private PingPongLock pongLock;
+    private PingPongLock pingLock;
+    private boolean isFirst = true;
+
+    public Ping(PingPongLock pongLock, PingPongLock pingLock) {
+        this.pongLock = pongLock;
+        this.pingLock = pingLock;
+    }
+
+    @Override
+    public void run() {
+        while(true) {
+            if (isFirst) {
+                System.out.println("Ping");
+                isFirst = false;
+                // notify pong thread to print
+                synchronized (pingLock) {
+                    pingLock.setLocked(false);
+                    pingLock.notify();
+                }
+                continue;
+            }
+            // wait for pong thread to print
+            synchronized (pongLock) {
+                while(pongLock.isLocked()) {
+                    try {
+                        pongLock.wait();
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                    }
+                }
+            }
+            System.out.println("Ping");
+            pongLock.setLocked(true);
+            // notify pong thread to print
+            synchronized (pingLock) {
+                pingLock.setLocked(false);
+                pingLock.notify();
+            }
+        }
+    }
+}
+
+class Pong implements Runnable {
+    private PingPongLock pingLock;
+    private PingPongLock pongLock;
+
+    public Pong(PingPongLock pingLock, PingPongLock pongLock) {
+        this.pingLock = pingLock;
+        this.pongLock = pongLock;
+    }
+
+    @Override
+    public void run() {
+        while(true) {
+            // wait for ping thread to print
+            synchronized (pingLock) {
+                while(pingLock.isLocked()) {
+                    try {
+                        pingLock.wait();
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                    }
+                }
+            }
+            System.out.println("Pong");
+            pingLock.setLocked(true);
+            // notify ping thread to print
+            synchronized (pongLock) {
+                pongLock.setLocked(false);
+                pongLock.notify();
+            }
+        }
+    }
+}
+```
+
+We’re very close, but this version is still racy because read/write the permit outside the lock we use for wait/notify.
+
+In order to correct this, we need to ensure that the read/write of the permit is done inside the synchronized block.
+
+```java
+package io.github.smdaziz;
+
+// Goal: Implement a PingPong program where two threads print alternately “Ping” and “Pong” forever.
+public class Problem9 {
+    public static void main(String[] args) {
+        PingPongLock pingLock = new PingPongLock(true);
+        PingPongLock pongLock = new PingPongLock(true);
+        Ping ping = new Ping(pongLock, pingLock);
+        Pong pong = new Pong(pingLock, pongLock);
+        Thread pingThread = new Thread(ping);
+        Thread pongThread = new Thread(pong);
+        pingThread.start();
+        pongThread.start();
+    }
+}
+
+class PingPongLock {
+    private boolean isLocked = true;
+
+    public PingPongLock(boolean initial) {
+        this.isLocked = initial;
+    }
+
+    public boolean isLocked() {
+        return isLocked;
+    }
+
+    public void setLocked(boolean locked) {
+        isLocked = locked;
+    }
+}
+
+class Ping implements Runnable {
+    private PingPongLock pongLock;
+    private PingPongLock pingLock;
+    private boolean isFirst = true;
+
+    public Ping(PingPongLock pongLock, PingPongLock pingLock) {
+        this.pongLock = pongLock;
+        this.pingLock = pingLock;
+    }
+
+    @Override
+    public void run() {
+        while(true) {
+            if (isFirst) {
+                System.out.println("Ping");
+                isFirst = false;
+                // notify pong thread to print
+                synchronized (pingLock) {
+                    pingLock.setLocked(false);
+                    pingLock.notify();
+                }
+                continue;
+            }
+            // wait for pong thread to print
+            synchronized (pongLock) {
+                while(pongLock.isLocked()) {
+                    try {
+                        pongLock.wait();
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                    }
+                }
+                pongLock.setLocked(true);
+            }
+            System.out.println("Ping");
+            // notify pong thread to print
+            synchronized (pingLock) {
+                pingLock.setLocked(false);
+                pingLock.notify();
+            }
+        }
+    }
+}
+
+class Pong implements Runnable {
+    private PingPongLock pingLock;
+    private PingPongLock pongLock;
+
+    public Pong(PingPongLock pingLock, PingPongLock pongLock) {
+        this.pingLock = pingLock;
+        this.pongLock = pongLock;
+    }
+
+    @Override
+    public void run() {
+        while(true) {
+            // wait for ping thread to print
+            synchronized (pingLock) {
+                while(pingLock.isLocked()) {
+                    try {
+                        pingLock.wait();
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                    }
+                }
+                pingLock.setLocked(true);
+            }
+            System.out.println("Pong");
+            // notify ping thread to print
+            synchronized (pongLock) {
+                pongLock.setLocked(false);
+                pongLock.notify();
+            }
+        }
+    }
+}
+```
+
+While this code works, it is still not ideal because we are using two lock objects and two boolean flags to coordinate between the two threads.
+
+It can be simplified further by using a single lock object and a single boolean flag to indicate whose turn it is to print.
+
+```java
+package io.github.smdaziz;
+
+// Goal: Implement a PingPong program where two threads print alternately “Ping” and “Pong” forever.
+public class Problem9 {
+    public static void main(String[] args) {
+        PingPongLock pingPongLock = new PingPongLock(true);
+        Ping ping = new Ping(pingPongLock);
+        Pong pong = new Pong(pingPongLock);
+        Thread pingThread = new Thread(ping);
+        Thread pongThread = new Thread(pong);
+        pingThread.start();
+        pongThread.start();
+    }
+}
+
+class PingPongLock {
+    private boolean isPing = true;
+
+    public PingPongLock(boolean initial) {
+        this.isPing = initial;
+    }
+
+    public boolean isPing() {
+        return isPing;
+    }
+
+    public boolean isPong() {
+        return !isPing;
+    }
+
+    public void setPing(boolean isPing) {
+        this.isPing = isPing;
+    }
+}
+
+class Ping implements Runnable {
+    private PingPongLock pingPongLock;
+
+    public Ping(PingPongLock pingPongLock) {
+        this.pingPongLock = pingPongLock;
+    }
+
+    @Override
+    public void run() {
+        while(true) {
+            // wait for pong thread to print
+            synchronized(pingPongLock) {
+                while(pingPongLock.isPong()) {
+                    try {
+                        pingPongLock.wait();
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                    }
+                }
+            }
+            System.out.println("Ping");
+            synchronized(pingPongLock) {
+                pingPongLock.setPing(false);
+                pingPongLock.notify();
+            }
+        }
+    }
+}
+
+class Pong implements Runnable {
+    private PingPongLock pingPongLock;
+
+    public Pong(PingPongLock pingPongLock) {
+        this.pingPongLock = pingPongLock;
+    }
+
+    @Override
+    public void run() {
+        while(true) {
+            // wait for ping thread to print
+            synchronized(pingPongLock) {
+                while(pingPongLock.isPing()) {
+                    try {
+                        pingPongLock.wait();
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                    }
+                }
+            }
+            System.out.println("Pong");
+            synchronized(pingPongLock) {
+                pingPongLock.setPing(true);
+                pingPongLock.notify();
+            }
+        }
+    }
+}
+```
+
+It works fine and no issues
+
+Here is another similar version (AI generated)
+
+```java
+package demo.pingpong;
+
+public class PingPongDemo {
+    public static void main(String[] args) throws InterruptedException {
+        final int N = 20;                 // how many alternations per side
+        PingPong pp = new PingPong(true); // true → Ping goes first
+
+        Thread ping = new Thread(() -> {
+            for (int i = 0; i < N; i++) {
+                try { pp.ping(); } catch (InterruptedException e) { Thread.currentThread().interrupt(); break; }
+            }
+        }, "Ping");
+
+        Thread pong = new Thread(() -> {
+            for (int i = 0; i < N; i++) {
+                try { pp.pong(); } catch (InterruptedException e) { Thread.currentThread().interrupt(); break; }
+            }
+        }, "Pong");
+
+        ping.start();
+        pong.start();
+        ping.join();
+        pong.join();
+    }
+}
+
+final class PingPong {
+    private final Object lock = new Object();
+    private boolean pingTurn;
+
+    PingPong(boolean pingFirst) { this.pingTurn = pingFirst; }
+
+    void ping() throws InterruptedException {
+        synchronized (lock) {
+            while (!pingTurn) lock.wait();   // wait until it's Ping's turn
+            System.out.println("Ping");
+            pingTurn = false;                // hand off to Pong
+            lock.notifyAll();
+        }
+    }
+
+    void pong() throws InterruptedException {
+        synchronized (lock) {
+            while (pingTurn) lock.wait();    // wait until it's Pong's turn
+            System.out.println("Pong");
+            pingTurn = true;                 // hand off to Ping
+            lock.notifyAll();
+        }
+    }
+}
+```

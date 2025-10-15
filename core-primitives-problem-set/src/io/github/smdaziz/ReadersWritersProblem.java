@@ -103,3 +103,105 @@ class RWBufferReader implements Runnable {
         }
     }
 }
+
+interface RWLock {
+    public void beginRead();
+    public void endRead();
+    public void beginWrite();
+    public void endWrite();
+}
+
+class RWReaderPreferredLock implements RWLock {
+    private final Object monitor = new Object();
+    private int readers = 0;
+    private boolean isActiveWriter = false;
+
+    public void beginRead() {
+        synchronized (monitor) {
+            while(isActiveWriter) {
+                try {
+                    monitor.wait();
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+            }
+            readers++;
+        }
+    }
+
+    public void endRead() {
+        synchronized (monitor) {
+            readers--;
+            monitor.notifyAll();
+        }
+    }
+
+    public void beginWrite() {
+        synchronized (monitor) {
+            while(readers > 0 || isActiveWriter) {
+                try {
+                    monitor.wait();
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+            }
+            isActiveWriter = true;
+        }
+    }
+
+    public void endWrite() {
+        synchronized (monitor) {
+            isActiveWriter = false;
+            monitor.notifyAll();
+        }
+    }
+}
+
+class RWWriterPreferredLock implements RWLock {
+    private final Object monitor = new Object();
+    private int readers = 0;
+    private int waitingWriters = 0;
+    private boolean isActiveWriter = false;
+
+    public void beginRead() {
+        synchronized (monitor) {
+            try {
+                while(isActiveWriter || waitingWriters > 0) {
+                    monitor.wait();
+                }
+            } catch(InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+            readers++;
+        }
+    }
+
+    public void endRead() {
+        synchronized (monitor) {
+            readers--;
+            monitor.notifyAll();
+        }
+    }
+
+    public void beginWrite() {
+        synchronized (monitor) {
+            try {
+                while(readers > 0 || isActiveWriter) {
+                    waitingWriters++;
+                    monitor.wait();
+                    waitingWriters--;
+                }
+            } catch(InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+            isActiveWriter = true;
+        }
+    }
+
+    public void endWrite() {
+        synchronized (monitor) {
+            isActiveWriter = false;
+            monitor.notifyAll();
+        }
+    }
+}

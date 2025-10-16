@@ -15,22 +15,22 @@ public class ReadersWritersProblem {
         RWBufferReader reader = new RWBufferReader(configStore);
         Thread[] writers = new Thread[_writers];
         Thread[] readers = new Thread[_readers];
-        for(int i = 1; i <= writers.length; i++) {
-            writers[i-1] = new Thread(writer, "Writer-"+i);
-            writers[i-1].start();
+        for (int i = 1; i <= writers.length; i++) {
+            writers[i - 1] = new Thread(writer, "Writer-" + i);
+            writers[i - 1].start();
         }
-        for(int i = 1; i <= readers.length; i++) {
-            readers[i-1] = new Thread(reader, "Reader-"+i);
-            readers[i-1].start();
+        for (int i = 1; i <= readers.length; i++) {
+            readers[i - 1] = new Thread(reader, "Reader-" + i);
+            readers[i - 1].start();
         }
     }
 }
 
 interface RWLock {
-    public void beginRead();
-    public void endRead();
-    public void beginWrite();
-    public void endWrite();
+    void beginRead();
+    void endRead();
+    void beginWrite();
+    void endWrite();
 }
 
 class RWReaderPreferredLock implements RWLock {
@@ -40,15 +40,16 @@ class RWReaderPreferredLock implements RWLock {
 
     public void beginRead() {
         synchronized (monitor) {
-            while(isActiveWriter) {
+            boolean wasInterrupted = false;
+            while (isActiveWriter) {
                 try {
                     monitor.wait();
                 } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    return;
+                    wasInterrupted = true; // keep waiting, preserve status
                 }
             }
             readers++;
+            if (wasInterrupted) Thread.currentThread().interrupt();
         }
     }
 
@@ -63,15 +64,16 @@ class RWReaderPreferredLock implements RWLock {
 
     public void beginWrite() {
         synchronized (monitor) {
-            while(readers > 0 || isActiveWriter) {
+            boolean wasInterrupted = false;
+            while (readers > 0 || isActiveWriter) {
                 try {
                     monitor.wait();
                 } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    return;
+                    wasInterrupted = true; // keep waiting, preserve status
                 }
             }
             isActiveWriter = true;
+            if (wasInterrupted) Thread.currentThread().interrupt();
         }
     }
 
@@ -91,15 +93,16 @@ class RWWriterPreferredLock implements RWLock {
 
     public void beginRead() {
         synchronized (monitor) {
-            while(isActiveWriter || waitingWriters > 0) {
+            boolean wasInterrupted = false;
+            while (isActiveWriter || waitingWriters > 0) {
                 try {
                     monitor.wait();
-                } catch(InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    return;
+                } catch (InterruptedException e) {
+                    wasInterrupted = true; // keep waiting, preserve status
                 }
             }
             readers++;
+            if (wasInterrupted) Thread.currentThread().interrupt();
         }
     }
 
@@ -115,16 +118,17 @@ class RWWriterPreferredLock implements RWLock {
     public void beginWrite() {
         synchronized (monitor) {
             waitingWriters++;
+            boolean wasInterrupted = false;
             try {
-                while(readers > 0 || isActiveWriter) {
+                while (readers > 0 || isActiveWriter) {
                     try {
                         monitor.wait();
-                    } catch(InterruptedException e) {
-                        Thread.currentThread().interrupt();
-                        return;
+                    } catch (InterruptedException e) {
+                        wasInterrupted = true; // keep waiting, preserve status
                     }
                 }
                 isActiveWriter = true;
+                if (wasInterrupted) Thread.currentThread().interrupt();
             } finally {
                 waitingWriters--;
             }
@@ -158,14 +162,12 @@ class ConfigStore {
     }
 
     public String get(String key) {
-        String result = null;
+        lock.beginRead();
         try {
-            lock.beginRead();
-            result = data.get(key);
+            return data.get(key);
         } finally {
             lock.endRead();
         }
-        return result;
     }
 }
 
@@ -178,14 +180,15 @@ class RWBufferWriter implements Runnable {
 
     @Override
     public void run() {
-        for(int i = 1; i <= 10; i++) {
+        for (int i = 1; i <= 10; i++) {
             try {
-                Thread.sleep(2 * 1000);
+                Thread.sleep(1000);
             } catch (InterruptedException e) {
-                e.printStackTrace();
+                Thread.currentThread().interrupt();
+                break;
             }
             System.out.println(Thread.currentThread().getName() + " produced { \"Key-" + i + "\", \"Value-" + i + "\"}");
-            configStore.add("Key-"+i, "Value-"+i);
+            configStore.add("Key-" + i, "Value-" + i);
         }
     }
 }
@@ -199,13 +202,14 @@ class RWBufferReader implements Runnable {
 
     @Override
     public void run() {
-        for(int i = 1; i <= 10; i++) {
+        for (int i = 1; i <= 10; i++) {
             try {
-                Thread.sleep(1000);
+                Thread.sleep(2 * 1000);
             } catch (InterruptedException e) {
-                e.printStackTrace();
+                Thread.currentThread().interrupt();
+                break;
             }
-            System.out.println(Thread.currentThread().getName() + " consumed " + configStore.get("Key-"+i));
+            System.out.println(Thread.currentThread().getName() + " consumed " + configStore.get("Key-" + i));
         }
     }
 }

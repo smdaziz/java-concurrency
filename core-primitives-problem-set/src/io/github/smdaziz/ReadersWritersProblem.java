@@ -7,10 +7,10 @@ import java.util.Map;
 
 public class ReadersWritersProblem {
     public static void main(String[] args) {
-        RWLock lock = new RWReaderPreferredLock();
-        ConfigStore configStore = new ConfigStore(lock);
         int _writers = 2;
         int _readers = 5;
+        RWLock lock = new RWReaderPreferredLock();
+        ConfigStore configStore = new ConfigStore(lock);
         RWBufferWriter writer = new RWBufferWriter(configStore);
         RWBufferReader reader = new RWBufferReader(configStore);
         Thread[] writers = new Thread[_writers];
@@ -23,6 +23,22 @@ public class ReadersWritersProblem {
             readers[i - 1] = new Thread(reader, "Reader-" + i);
             readers[i - 1].start();
         }
+        // Part2
+        RWLock wLock = new RWWriterPreferredLock();
+        ConfigStore wConfigStore = new ConfigStore(wLock);
+        RWBufferWriter writer2 = new RWBufferWriter(wConfigStore);
+        RWBufferReader reader2 = new RWBufferReader(wConfigStore);
+        Thread[] writers2 = new Thread[_writers];
+        Thread[] readers2 = new Thread[_readers];
+        for (int i = 1; i <= writers2.length; i++) {
+            writers2[i - 1] = new Thread(writer2, "Writer2-" + i);
+            writers2[i - 1].start();
+        }
+        for (int i = 1; i <= readers2.length; i++) {
+            readers2[i - 1] = new Thread(reader2, "Reader2-" + i);
+            readers2[i - 1].start();
+        }
+        // Notice the Writer2-* threads gets more priority if you run Part2 in isolation
     }
 }
 

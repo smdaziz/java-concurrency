@@ -1,6 +1,6 @@
-package io.github.smdaziz.thread.deadlock;
+package io.github.smdaziz.thread.deadlock.diningphilosophers;
 
-public class DiningPhilosophers {
+public class DiningPhilosophersDeadlock {
     public static void main(String[] args) {
         int totalPhilosophers = 5;
         int totalChopsticks = 5;
@@ -10,7 +10,7 @@ public class DiningPhilosophers {
             chopsticks[i] = new Chopstick(i+1);
         }
         for(int i = 0; i < totalPhilosophers; i++) {
-            Chopstick left = chopsticks[(totalChopsticks+i-1) % totalChopsticks];
+            Chopstick left = chopsticks[(i) % totalChopsticks];
             Chopstick right = chopsticks[(i+1) % totalChopsticks];
             Philosopher philosopher = new Philosopher(left, right);
             diningPhilosophers[i] = new Thread(philosopher, "Philosopher-"+(i+1));

@@ -1,5 +1,5 @@
 package io.github.smdaziz;
-// Modify Problem1 so both threads must alternate strictly: 1 A 2 B 3 C …
+// Goal: Modify Problem1 so both threads must alternate strictly: 1 A 2 B 3 C …
 public class Problem2 {
 
     public static void main(String[] args) {

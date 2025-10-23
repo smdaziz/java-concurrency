@@ -1,5 +1,5 @@
 package io.github.smdaziz;
-// Write a program that creates two threads:
+// Goal: Write a program that creates two threads;
 // one prints numbers from 1–50,
 // the other prints letters from A–Z.
 // Run them concurrently — what interleaving do you see?

@@ -1,6 +1,8 @@
 package io.github.smdaziz;
 // Goal: Demonstrate the difference between calling run() directly vs start().
 // Why is one concurrent and the other not?
+// Calling `run()` does not start a thread rather invokes the `run` method as a regular method/function call.
+// Where as calling `start()` instantiates a thread and `run()` is invoked when JVM/OS executes the thread
 public class Problem3 {
 
     public static void main(String[] args) {

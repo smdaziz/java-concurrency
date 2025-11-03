@@ -3,10 +3,10 @@ package io.github.smdaziz.thread.pool;
 public class ThreadPoolDemo {
     public static void main(String[] args) {
         ThreadPool threadPool = new ThreadPool(3, 10);
-        for(int i = 1; i <= 10; i++) {
+        for(int i = 1; i <= 20; i++) {
             final String taskName = "Task"+i;
             threadPool.submit(() -> {
-                Thread.currentThread().setName(taskName);
+                System.out.println(Thread.currentThread().getName() + " executing " + taskName);
             });
         }
         threadPool.waitUntilFinished();
@@ -15,22 +15,27 @@ public class ThreadPoolDemo {
 }
 
 class ThreadPool {
-    private final int maxTasks;
     private final TaskQueue<Runnable> taskQueue;
     private volatile boolean isActive;
-    private ThreadPoolRunner threadPoolRunner;
+    private Thread[] threads;
 
     public ThreadPool(int maxThreads, int maxTasks) {
-        this.maxTasks = maxTasks;
+        threads = new Thread[maxThreads];
         this.taskQueue = new TaskQueue<>(maxTasks);
         this.isActive = true;
-        this.threadPoolRunner = new ThreadPoolRunner(maxThreads, taskQueue);
-        new Thread(threadPoolRunner, "ThreadPoolRunner").start();
+        for(int i = 0; i < maxThreads; i++) {
+            threads[i] = new Thread(new WorkerThread(this, taskQueue), "WorkerThread-"+(i+1));
+            threads[i].start();
+        }
     }
 
     public void submit(Runnable task) {
         try {
-            taskQueue.add(task);
+            if (isActive) {
+                taskQueue.add(task);
+            } else {
+                System.out.println("Cannot submit task as the ThreadPool is shutdown");
+            }
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }
@@ -45,32 +50,48 @@ class ThreadPool {
                     Thread.currentThread().interrupt();
                 }
             }
-            this.notifyAll();
         }
     }
 
-    public void shutdown() {
+    public synchronized boolean isActive() {
+        return this.isActive;
+    }
+
+    public synchronized void shutdown() {
         isActive = false;
+        // Interrupt worker threads to release them from blocking calls.
+        for(Thread t: threads) {
+            t.interrupt();
+        }
     }
 }
 
-class ThreadPoolRunner implements Runnable {
+class WorkerThread implements Runnable {
+    private final ThreadPool threadPool;
     private final TaskQueue<Runnable> taskQueue;
-    private Thread[] threads;
 
-    public ThreadPoolRunner(int maxThreads, TaskQueue<Runnable> taskQueue) {
-        threads = new Thread[maxThreads];
+    public WorkerThread(ThreadPool threadPool, TaskQueue<Runnable> taskQueue) {
+        this.threadPool = threadPool;
         this.taskQueue = taskQueue;
-
-        for(int i = 1; i <= maxThreads; i++) {
-            threads[i] = new Thread("Thread-"+i);
-        }
     }
     @Override
     public void run() {
-        while(!taskQueue.isEmpty()) {
+        // the || !taskQueue.isEmpty() is very much needed
+        // because when shutdown() is called, isActive = false
+        // but workers will stop looping immediately,
+        // even if there are still tasks left in the queue that haven’t been executed.
+        while(threadPool.isActive() || !taskQueue.isEmpty()) {
             try {
                 Runnable task = taskQueue.remove();
+                task.run();
+                // threads waiting on the threadPool should be notified after removing task because
+                // if taskQueue.remove() blocks while shutdown() happens,
+                // the worker will stay stuck forever.
+                synchronized (threadPool) {
+                    if (taskQueue.isEmpty()) {
+                        threadPool.notifyAll();
+                    }
+                }
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
             }

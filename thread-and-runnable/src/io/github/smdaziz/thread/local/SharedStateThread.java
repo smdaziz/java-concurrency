@@ -1,6 +1,6 @@
 package io.github.smdaziz.thread.local;
 
-public class ThreadSharedStateDemo {
+public class SharedStateThread {
     public static void main(String[] args) {
         NamedThread namedThread = new NamedThread();
         Thread t1 = new Thread(namedThread, "NamedThread-1");

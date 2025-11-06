@@ -3,12 +3,14 @@ package io.github.smdaziz;
 import java.util.HashMap;
 import java.util.Map;
 
-// Goal: Create a ReaderWriter problem (1 writer, many readers). Ensure mutual exclusion correctly.
+// Goal: Create a ReaderWriter problem (2 writers, many readers). Ensure mutual exclusion correctly.
 
 public class ReadersWritersProblem {
     public static void main(String[] args) {
         int _writers = 2;
         int _readers = 5;
+        System.out.println("Reader Preferred Lock");
+        // Part-1: Reader Preferred Lock
         RWLock lock = new RWReaderPreferredLock();
         ConfigStore configStore = new ConfigStore(lock);
         RWBufferWriter writer = new RWBufferWriter(configStore);
@@ -16,14 +18,34 @@ public class ReadersWritersProblem {
         Thread[] writers = new Thread[_writers];
         Thread[] readers = new Thread[_readers];
         for (int i = 1; i <= writers.length; i++) {
-            writers[i - 1] = new Thread(writer, "Writer-" + i);
+            writers[i - 1] = new Thread(writer, "Writer1-" + i);
             writers[i - 1].start();
         }
         for (int i = 1; i <= readers.length; i++) {
-            readers[i - 1] = new Thread(reader, "Reader-" + i);
+            readers[i - 1] = new Thread(reader, "Reader1-" + i);
             readers[i - 1].start();
         }
-        // Part2
+        for(Thread t : writers) {
+            try {
+                t.join();
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            }
+        }
+        for(Thread t : readers) {
+            try {
+                t.join();
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            }
+        }
+        try {
+            Thread.sleep(3000);
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        }
+        System.out.println("Writer Preferred Lock");
+        // Part-2: Writer Preferred Lock
         RWLock wLock = new RWWriterPreferredLock();
         ConfigStore wConfigStore = new ConfigStore(wLock);
         RWBufferWriter writer2 = new RWBufferWriter(wConfigStore);

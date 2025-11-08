@@ -12,6 +12,11 @@ public class CyclicBarrierThread {
         Thread thread6 = new Thread(new CyclicBarrierCounter(barrier), "Thread-6");
         thread1.start();
         thread2.start();
+        try {
+            Thread.sleep(2000);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
         thread3.start();
         System.out.println("Main thread is running.");
         try {
@@ -92,7 +97,8 @@ class CyclicBarrierCounter implements Runnable {
         barrier.waitForOthers();
         System.out.println(Thread.currentThread().getName() + " has crossed the barrier.");
         try {
-            Thread.sleep(5000); // Simulate some work with sleep
+            System.out.println(Thread.currentThread().getName() + " performing some work.");
+            Thread.sleep(10000); // Simulate some work with sleep
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }

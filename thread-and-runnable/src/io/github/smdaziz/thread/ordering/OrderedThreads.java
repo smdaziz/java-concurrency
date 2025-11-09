@@ -15,10 +15,9 @@ public class OrderedThreads {
         try {
             thread1.start();
             thread1.join(); // Wait for thread1 to finish
-
+            System.out.println("Halfway");
             thread2.start();
             thread2.join(); // Wait for thread2 to finish
-
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }
